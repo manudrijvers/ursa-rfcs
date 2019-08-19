@@ -156,6 +156,195 @@ Given this proof module interface, a central *proof orchestrator* within zmix sh
 
 ![Verification flow](zmix_proof_verification.png)
 
+## Zmix Concepts (expressed in Rust code): WIP
+
+NOTE: This code in this section is a *work in progress*!
+
+### Main zmix API: Proof Orchestrator
+
+```rust
+pub trait ProofOrchestrator {
+    fn generate_proof(spec: ProofSpec, witness: Witness) -> Result<Proof, ZmixError>;
+    fn verify_proof(proof: Proof, spec: ProofSpec) -> Result<(), ZmixError>;
+}
+```
+
+### Proof Modules
+
+```rust
+pub trait ProofModule {
+    fn get_hash_contribution(
+        statement: Statement,
+        witness: StatementWitness,
+        message_r_values: Vec<Vec<u8>>,
+    ) -> Result<(HashContribution, ProofModuleState), ZmixError>;
+    fn get_proof_contribution(
+        state: ProofModuleState,
+        challenge_hash: Vec<u8>,
+    ) -> Result<StatementProof, ZmixError>;
+    fn recompute_hash_contribution(
+        challenge_hash: Vec<u8>,
+        proof: StatementProof,
+    ) -> Result<HashContribution, ZmixError>;
+}
+
+pub struct HashContribution(pub Vec<u8>);
+pub struct ProofModuleState(pub Vec<u8>);
+```
+
+### Statements
+
+```rust
+pub enum Statement {
+    /// Boneh Boyen Shacham Signature
+    SignatureBBS {
+        pk: Vec<u8>,
+        messages: Vec<HiddenOrRevealedValue>,
+    },
+    /// Pointcheval Sanders Signature
+    SignaturePS {
+        pk: Vec<u8>,
+        messages: Vec<HiddenOrRevealedValue>,
+    },
+    PedersenCommitment {
+        message_index: usize,
+        commitment: Vec<u8>,
+        params: PedersenCommitmentParams,
+    },
+    IntervalBulletproof {
+        message_index: usize,
+        min: Vec<u8>,
+        max: Vec<u8>,
+        params: Vec<u8>,
+    },
+    /// Camenisch Shoup Encryption
+    EncryptionCS {
+        message_index: usize,
+        pk: Vec<u8>,
+        ciphertext: Vec<u8>,
+    },
+    /// As defined by Bernhard et al., Anonymous attestation with user-controlled linkability (ia.cr/2011/658)
+    LinkableIndistinguishableTagBLS {
+        message_index: usize,
+        tag: Vec<u8>,
+        params: Vec<u8>,
+    },
+}
+
+pub enum HiddenOrRevealedValue {
+    HiddenValueIndex(usize),
+    RevealedValue(Vec<u8>),
+}
+
+pub struct PedersenCommitmentParams(pub Vec<u8>);
+```
+
+### Proof Specification
+
+```rust
+pub struct ProofSpec {
+    pub message_count: usize,
+    pub statements: Vec<Statement>,
+    pub params: ProofSpecParams,
+}
+
+pub enum ProofSpecParams {
+    BN254,
+    BLS12_381,
+    Ed25519,
+}
+```
+
+### Witness
+```rust
+/// A witness w is valid w.r.t. a proof specification s if
+/// * w contains one value for each of the (hidden) messages in s, so w.messages.len() == s.message_count
+/// * w contains one statement witness for each statement in s, so w.statement_witnesses.len() == s.statements.len()
+/// * TODO: add further requirements
+pub struct Witness {
+    messages: Vec<Vec<u8>>,
+    statement_witnesses: Vec<StatementWitness>,
+}
+
+/// There is witness variant for every statement type
+pub enum StatementWitness {
+    SignatureBBS(SignatureBBSWitness),
+    SignaturePS(SignaturePSWitness),
+    EncryptionCS(EncryptionCSWitness),
+    PedersenCommitment(PedersenCommitmentWitness),
+    IntervalBulletproof, // no witness data needed
+}
+
+pub struct SignatureBBSWitness {
+    a: Vec<u8>,
+    e: Vec<u8>,
+    s: Vec<u8>,
+}
+
+pub struct SignaturePSWitness {
+    // TODO
+}
+
+pub struct EncryptionCSWitness {
+    // TODO
+}
+
+pub struct PedersenCommitmentWitness {
+    opening: Vec<u8>,
+}
+```
+
+### Proof
+
+```rust
+/// A proof p is valid w.r.t. a proof specification s if
+/// * p contains one message s-value for each of the (hidden) messages in s, so p.message_s_values.len() == s.message_count
+/// * p contains one statement proof for each statement in s, so p.statement_proofs.len() == s.statements.len()
+/// * the type of p.statement_proofs[i] corresponds to the type of s.statements[i]
+/// * TODO: add further requirements
+pub struct Proof {
+    // proof contains a single “challenge” value
+    challenge_hash: Vec<u8>,
+    message_s_values: Vec<Vec<u8>>,
+    statement_proofs: Vec<StatementProof>,
+}
+
+/// There is proof variant for every statement type
+pub enum StatementProof {
+    SignatureBBS(SignatureBBSProof),
+    SignaturePS(SignaturePSProof),
+    EncryptionCS(EncryptionCSProof),
+    PedersenCommitment(PedersenCommitmentProof),
+    IntervalBulletproof(IntervalBulletproofProof),
+}
+
+pub struct SignatureBBSProof {
+    a_prime: Vec<u8>,
+    a_bar: Vec<u8>,
+    b_prime: Vec<u8>,
+    s_r2: Vec<u8>,
+    s_r3: Vec<u8>,
+    s_s_prime: Vec<u8>,
+    s_e: Vec<u8>,
+}
+
+pub struct SignaturePSProof {
+    // TODO
+}
+
+pub struct EncryptionCSProof {
+    // TODO
+}
+
+pub struct PedersenCommitmentProof {
+    opening_s_val: Vec<u8>,
+}
+
+pub struct IntervalBulletproofProof {
+    // TODO
+}
+```
+
 ## Serialization
 
 TODO: Depending on how the zmix library will be shipped and deployed, we may require a way to serialize and deserialize the `ProofSpec`, the `Witness`, and the `Proof` structures. This, for example, could be done by means of a JSON schema. An alternative approach would be to offer zmix only for Rust as a Rust crate: then serialization and deserialization seems to become irrelevant.
