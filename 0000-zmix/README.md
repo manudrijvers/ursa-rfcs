@@ -81,6 +81,10 @@ pub struct ProofSpec {
 }
 ```
 
+***
+TODO: rewrite the text from here to focus more on *how* all the parts fit together based on the *proof modules* (including the two sequence diagrams) and the generic concept of *statements*, without talking about concrete statement types (such as signatures and commitments) yet. Only afterwards, we should introduce the various statement types and have separate sections for each of them to explain what they are about (SignatureBBS, SignaturePS, PedersenCommitment, IntervalBulletproof, EncryptionCS, LinkableIndistinguishableTagBLS).
+***
+
 While the library will offer various kinds of statements, the most important ones are for signatures. In general, signatures contain at least
 
 1. a public key under which the signature can be verified, and
